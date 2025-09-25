@@ -79,13 +79,13 @@ const Index = () => {
     >
       <Navigation
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
         unreadCount={unreadCount}
         currentUser={currentUser}
       />
       
       <main>
-        {activeView === 'user' ? (
+        {activeView === 'user' || currentUser?.role !== 'admin' ? (
           <UserDashboard />
         ) : (
           <AdminDashboard />
