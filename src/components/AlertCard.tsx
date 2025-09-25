@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Info, Zap, Clock, CheckCircle } from 'lucide-react';
-import { Alert, AlertSeverity, UserAlertPreference } from '../types/alert';
+import { Alert, AlertSeverity, UserAlertPreference } from '../types/database';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -42,7 +42,7 @@ export const AlertCard: React.FC<AlertCardProps> = ({
 }) => {
   const SeverityIcon = severityIcons[alert.severity];
   const isRead = preference?.read || false;
-  const isSnoozed = preference?.snoozedUntil && new Date(preference.snoozedUntil) > new Date();
+  const isSnoozed = preference?.snoozed_until && new Date(preference.snoozed_until) > new Date();
 
   const handleSnooze = () => {
     if (onSnooze) {
@@ -105,9 +105,9 @@ export const AlertCard: React.FC<AlertCardProps> = ({
                 </div>
                 <p className="text-foreground/80 leading-relaxed">{alert.message}</p>
                 <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-                  <span>Created: {new Date(alert.createdAt).toLocaleDateString()}</span>
-                  <span>Expires: {new Date(alert.expiryTime).toLocaleDateString()}</span>
-                  {alert.reminderEnabled && (
+                  <span>Created: {new Date(alert.created_at).toLocaleDateString()}</span>
+                  <span>Expires: {new Date(alert.expiry_time).toLocaleDateString()}</span>
+                  {alert.reminder_enabled && (
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       Reminders every 2h

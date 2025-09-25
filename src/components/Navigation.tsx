@@ -1,21 +1,42 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BarChart3, Settings, User } from 'lucide-react';
+import { Bell, BarChart3, User, LogOut } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { currentUser } from '../services/mockData';
+import { Profile } from '../types/database';
+import { authService } from '../services/authService';
+import { useToast } from '../hooks/use-toast';
 
 interface NavigationProps {
   activeView: 'user' | 'admin';
   onViewChange: (view: 'user' | 'admin') => void;
   unreadCount?: number;
+  currentUser: Profile;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
   activeView,
   onViewChange,
   unreadCount = 0,
+  currentUser,
 }) => {
+  const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    try {
+      await authService.signOut();
+      toast({
+        title: "Signed Out",
+        description: "You have been signed out successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
   return (
     <motion.nav
       initial={{ opacity: 0, y: -20 }}
@@ -71,6 +92,16 @@ export const Navigation: React.FC<NavigationProps> = ({
               {currentUser.role}
             </Badge>
           </div>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSignOut}
+            className="flex items-center gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
         </div>
       </div>
     </motion.nav>

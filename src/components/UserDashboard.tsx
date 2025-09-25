@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, BellOff, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Alert, UserAlertPreference } from '../types/alert';
+import { Alert, UserAlertPreference, Profile } from '../types/database';
 import { alertService } from '../services/alertService';
-import { currentUser } from '../services/mockData';
+import { authService } from '../services/authService';
 import { AlertCard } from './AlertCard';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -15,61 +15,120 @@ export const UserDashboard: React.FC = () => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [preferences, setPreferences] = useState<UserAlertPreference[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [currentUser, setCurrentUser] = useState<Profile | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    loadUserAlerts();
+    loadCurrentUser();
   }, []);
 
-  const loadUserAlerts = () => {
-    const userAlerts = alertService.getAlertsForUser(currentUser.id);
-    const userPrefs = alertService.getUserAlertPreferences(currentUser.id);
-    
-    setAlerts(userAlerts);
-    setPreferences(userPrefs);
-    
-    // Calculate unread count
-    const unread = userAlerts.filter(alert => {
-      const pref = userPrefs.find(p => p.alertId === alert.id);
-      return !pref?.read;
-    }).length;
-    setUnreadCount(unread);
+  useEffect(() => {
+    if (currentUser) {
+      loadUserAlerts();
+    }
+  }, [currentUser]);
+
+  const loadCurrentUser = async () => {
+    try {
+      const user = await authService.getCurrentProfile();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Failed to load current user:', error);
+    }
   };
 
-  const handleSnooze = (alertId: string) => {
-    alertService.snoozeAlert(currentUser.id, alertId);
-    loadUserAlerts();
-    toast({
-      title: "Alert Snoozed",
-      description: "Alert has been snoozed for the rest of today.",
-    });
+  const loadUserAlerts = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const [userAlerts, userPrefs] = await Promise.all([
+        alertService.getAlertsForUser(currentUser.user_id),
+        alertService.getUserAlertPreferences(currentUser.user_id),
+      ]);
+      
+      setAlerts(userAlerts);
+      setPreferences(userPrefs);
+      
+      // Calculate unread count
+      const unread = userAlerts.filter(alert => {
+        const pref = userPrefs.find(p => p.alert_id === alert.id);
+        return !pref?.read;
+      }).length;
+      setUnreadCount(unread);
+    } catch (error) {
+      console.error('Failed to load user alerts:', error);
+    }
   };
 
-  const handleMarkRead = (alertId: string, read: boolean) => {
-    alertService.markAlertAsRead(currentUser.id, alertId, read);
-    loadUserAlerts();
-    toast({
-      title: read ? "Marked as Read" : "Marked as Unread",
-      description: `Alert has been marked as ${read ? 'read' : 'unread'}.`,
-    });
+  const handleSnooze = async (alertId: string) => {
+    if (!currentUser) return;
+    
+    try {
+      await alertService.snoozeAlert(currentUser.user_id, alertId);
+      await loadUserAlerts();
+      toast({
+        title: "Alert Snoozed",
+        description: "Alert has been snoozed for the rest of today.",
+      });
+    } catch (error) {
+      console.error('Failed to snooze alert:', error);
+      toast({
+        title: "Error",
+        description: "Failed to snooze alert. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMarkRead = async (alertId: string, read: boolean) => {
+    if (!currentUser) return;
+    
+    try {
+      await alertService.markAlertAsRead(currentUser.user_id, alertId, read);
+      await loadUserAlerts();
+      toast({
+        title: read ? "Marked as Read" : "Marked as Unread",
+        description: `Alert has been marked as ${read ? 'read' : 'unread'}.`,
+      });
+    } catch (error) {
+      console.error('Failed to mark alert:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update alert. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const activeAlerts = alerts.filter(alert => {
-    const pref = preferences.find(p => p.alertId === alert.id);
-    const isSnoozed = pref?.snoozedUntil && new Date(pref.snoozedUntil) > new Date();
+    const pref = preferences.find(p => p.alert_id === alert.id);
+    const isSnoozed = pref?.snoozed_until && new Date(pref.snoozed_until) > new Date();
     return !isSnoozed;
   });
 
   const snoozedAlerts = alerts.filter(alert => {
-    const pref = preferences.find(p => p.alertId === alert.id);
-    const isSnoozed = pref?.snoozedUntil && new Date(pref.snoozedUntil) > new Date();
+    const pref = preferences.find(p => p.alert_id === alert.id);
+    const isSnoozed = pref?.snoozed_until && new Date(pref.snoozed_until) > new Date();
     return isSnoozed;
   });
 
   const readAlerts = alerts.filter(alert => {
-    const pref = preferences.find(p => p.alertId === alert.id);
+    const pref = preferences.find(p => p.alert_id === alert.id);
     return pref?.read;
   });
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card>
+          <CardContent className="p-8 text-center">
+            <h2 className="text-2xl font-bold mb-4">Please Sign In</h2>
+            <p className="text-muted-foreground">You need to be signed in to view your alerts.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -215,7 +274,7 @@ export const UserDashboard: React.FC = () => {
             ) : (
               <AnimatePresence>
                 {activeAlerts.map((alert) => {
-                  const preference = preferences.find(p => p.alertId === alert.id);
+                  const preference = preferences.find(p => p.alert_id === alert.id);
                   return (
                     <AlertCard
                       key={alert.id}
@@ -243,7 +302,7 @@ export const UserDashboard: React.FC = () => {
             ) : (
               <AnimatePresence>
                 {snoozedAlerts.map((alert) => {
-                  const preference = preferences.find(p => p.alertId === alert.id);
+                  const preference = preferences.find(p => p.alert_id === alert.id);
                   return (
                     <AlertCard
                       key={alert.id}
@@ -271,7 +330,7 @@ export const UserDashboard: React.FC = () => {
             ) : (
               <AnimatePresence>
                 {alerts.map((alert) => {
-                  const preference = preferences.find(p => p.alertId === alert.id);
+                  const preference = preferences.find(p => p.alert_id === alert.id);
                   return (
                     <AlertCard
                       key={alert.id}

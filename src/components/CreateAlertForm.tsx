@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, CalendarIcon, Users, User, Building } from 'lucide-react';
-import { Alert, AlertSeverity } from '../types/alert';
+import { Alert, AlertSeverity, AlertInsert, Team, Profile } from '../types/database';
 import { alertService } from '../services/alertService';
-import { mockTeams, mockUsers } from '../services/mockData';
+import { authService } from '../services/authService';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -23,6 +23,29 @@ export const CreateAlertForm: React.FC<CreateAlertFormProps> = ({
   onAlertCreated,
 }) => {
   const { toast } = useToast();
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [users, setUsers] = useState<Profile[]>([]);
+  const [currentUser, setCurrentUser] = useState<Profile | null>(null);
+  
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [teamsData, usersData, currentUserData] = await Promise.all([
+        authService.getTeams(),
+        authService.getProfiles(),
+        authService.getCurrentProfile(),
+      ]);
+      setTeams(teamsData);
+      setUsers(usersData.filter(user => user.role !== 'admin'));
+      setCurrentUser(currentUserData);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    }
+  };
+
   const [formData, setFormData] = useState({
     title: '',
     message: '',
@@ -37,7 +60,7 @@ export const CreateAlertForm: React.FC<CreateAlertFormProps> = ({
     expiryTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.title.trim() || !formData.message.trim()) {
@@ -49,25 +72,49 @@ export const CreateAlertForm: React.FC<CreateAlertFormProps> = ({
       return;
     }
 
-    const alertData = {
-      ...formData,
-      deliveryTypes: ['inapp'],
-      reminderFrequencyMinutes: 120,
-      startTime: new Date(formData.startTime).toISOString(),
-      expiryTime: new Date(formData.expiryTime).toISOString(),
-      archived: false,
-      createdBy: 'admin1',
-    };
+    if (!currentUser) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to create alerts.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    const newAlert = alertService.createAlert(alertData);
-    onAlertCreated(newAlert);
-    
-    toast({
-      title: "Alert Created",
-      description: "Your alert has been created successfully.",
-    });
-    
-    onClose();
+    try {
+      const alertData: AlertInsert = {
+        title: formData.title,
+        message: formData.message,
+        severity: formData.severity,
+        visibility_org: formData.visibility.org,
+        visibility_teams: formData.visibility.teams,
+        visibility_users: formData.visibility.users,
+        delivery_types: ['inapp'],
+        reminder_enabled: formData.reminderEnabled,
+        reminder_frequency_minutes: 120,
+        start_time: new Date(formData.startTime).toISOString(),
+        expiry_time: new Date(formData.expiryTime).toISOString(),
+        archived: false,
+        created_by: currentUser.user_id,
+      };
+
+      const newAlert = await alertService.createAlert(alertData);
+      onAlertCreated(newAlert);
+      
+      toast({
+        title: "Alert Created",
+        description: "Your alert has been created successfully.",
+      });
+      
+      onClose();
+    } catch (error) {
+      console.error('Failed to create alert:', error);
+      toast({
+        title: "Creation Failed",
+        description: "Failed to create alert. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleVisibilityChange = (type: 'org' | 'team' | 'user', value: string | boolean) => {
@@ -235,7 +282,7 @@ export const CreateAlertForm: React.FC<CreateAlertFormProps> = ({
                           Specific Teams
                         </Label>
                         <div className="grid grid-cols-2 gap-2 ml-6">
-                          {mockTeams.map((team) => (
+                          {teams.map((team) => (
                             <div key={team.id} className="flex items-center space-x-2">
                               <Checkbox
                                 id={`team-${team.id}`}
@@ -254,18 +301,21 @@ export const CreateAlertForm: React.FC<CreateAlertFormProps> = ({
                           Specific Users
                         </Label>
                         <div className="grid grid-cols-1 gap-2 ml-6 max-h-32 overflow-y-auto">
-                          {mockUsers.filter(user => user.role !== 'admin').map((user) => (
-                            <div key={user.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`user-${user.id}`}
-                                checked={formData.visibility.users.includes(user.id)}
-                                onCheckedChange={() => handleVisibilityChange('user', user.id)}
-                              />
-                              <Label htmlFor={`user-${user.id}`} className="text-sm">
-                                {user.name} ({mockTeams.find(t => t.id === user.teamId)?.name})
-                              </Label>
-                            </div>
-                          ))}
+                          {users.map((user) => {
+                            const userTeam = teams.find(t => t.id === user.team_id);
+                            return (
+                              <div key={user.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`user-${user.id}`}
+                                  checked={formData.visibility.users.includes(user.user_id)}
+                                  onCheckedChange={() => handleVisibilityChange('user', user.user_id)}
+                                />
+                                <Label htmlFor={`user-${user.id}`} className="text-sm">
+                                  {user.name} ({userTeam?.name || 'No Team'})
+                                </Label>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </>

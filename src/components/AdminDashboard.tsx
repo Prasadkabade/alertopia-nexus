@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Filter, BarChart3, Users, Bell, AlertTriangle } from 'lucide-react';
-import { Alert, AlertSeverity } from '../types/alert';
+import { Alert, AlertSeverity } from '../types/database';
 import { alertService } from '../services/alertService';
-import { mockAnalytics, mockTeams, mockUsers } from '../services/mockData';
 import { AlertCard } from './AlertCard';
 import { SimpleChart } from './SimpleChart';
 import { CreateAlertForm } from './CreateAlertForm';
@@ -14,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 export const AdminDashboard: React.FC = () => {
-  const [alerts, setAlerts] = useState<Alert[]>(alertService.getAllAlerts());
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [filters, setFilters] = useState<{
     severity?: AlertSeverity;
@@ -22,20 +21,63 @@ export const AdminDashboard: React.FC = () => {
     audience?: 'org' | 'team' | 'user';
   }>({});
 
-  const applyFilters = () => {
-    setAlerts(alertService.getAllAlerts(filters));
+  useEffect(() => {
+    loadAlerts();
+  }, []);
+
+  const loadAlerts = async () => {
+    try {
+      const data = await alertService.getAllAlerts(filters);
+      setAlerts(data);
+    } catch (error) {
+      console.error('Failed to load alerts:', error);
+    }
   };
 
-  const clearFilters = () => {
+  const applyFilters = async () => {
+    try {
+      const data = await alertService.getAllAlerts(filters);
+      setAlerts(data);
+    } catch (error) {
+      console.error('Failed to apply filters:', error);
+    }
+  };
+
+  const clearFilters = async () => {
     setFilters({});
-    setAlerts(alertService.getAllAlerts());
+    try {
+      const data = await alertService.getAllAlerts();
+      setAlerts(data);
+    } catch (error) {
+      console.error('Failed to clear filters:', error);
+    }
   };
 
   const handleAlertCreated = (newAlert: Alert) => {
     setAlerts(prev => [newAlert, ...prev]);
   };
 
-  const analytics = mockAnalytics;
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
+
+  const [analytics, setAnalytics] = useState({
+    totalAlertsCreated: 0,
+    alertsActive: 0,
+    deliveredCount: 0,
+    readCount: 0,
+    snoozeCountsPerAlert: {},
+    severityBreakdown: { Info: 0, Warning: 0, Critical: 0 }
+  });
+
+  const loadAnalytics = async () => {
+    try {
+      const data = await alertService.getAnalytics();
+      setAnalytics(data);
+    } catch (error) {
+      console.error('Failed to load analytics:', error);
+    }
+  };
   
   const severityChartData = Object.entries(analytics.severityBreakdown).map(([severity, count]) => ({
     name: severity,
@@ -271,7 +313,7 @@ export const AdminDashboard: React.FC = () => {
                       return (
                         <div key={alertId} className="flex items-center justify-between">
                           <span className="text-sm">{alert?.title || `Alert ${alertId}`}</span>
-                          <Badge variant="outline">{count} snoozes</Badge>
+                          <Badge variant="outline">{String(count)} snoozes</Badge>
                         </div>
                       );
                     })}
