@@ -194,7 +194,7 @@ export const AdminDashboard: React.FC = () => {
                       <div>
                         <p className="text-white/80">Read Rate</p>
                         <p className="text-3xl font-bold">
-                          {Math.round((analytics.readCount / analytics.deliveredCount) * 100)}%
+                          {analytics.deliveredCount > 0 ? Math.round((analytics.readCount / analytics.deliveredCount) * 100) : 0}%
                         </p>
                       </div>
                       <Users className="h-8 w-8 text-white/80" />
@@ -334,7 +334,7 @@ export const AdminDashboard: React.FC = () => {
                     <div className="flex justify-between items-center">
                       <span>Read Rate</span>
                       <span className="font-semibold">
-                        {Math.round((analytics.readCount / analytics.deliveredCount) * 100)}%
+                        {analytics.deliveredCount > 0 ? Math.round((analytics.readCount / analytics.deliveredCount) * 100) : 0}%
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
